@@ -144,25 +144,26 @@ class Pipeline(Estimator, MLReadable, MLWritable):
 
 
     # TODO: remove this it isn't needed
-    @since("2.0.0")
-    def save(self, path):
-        """Save this ML instance to the given path, a shortcut of `write().save(path)`."""
-        self.write().save(path)
+    # @since("2.0.0")
+    # def save(self, path):
+    #     """Save this ML instance to the given path, a shortcut of `write().save(path)`."""
+    #     self.write().save(path)
 
-    @since("2.3.0")
-    def load(cls, path):
-        metadata = DefaultParamsReader.loadMetadata(path, sc, expectedClassName)
-        if 'isJavaReadable' not in metadata:
-            cls.read().load(path)
-        else:
-            PipelineReader(cls).load(metadata, cls, path)
+    # @since("2.3.0")
+    # def load(cls, path):
+    #     metadata = DefaultParamsReader.loadMetadata(path, sc, expectedClassName)
+    #     if 'isJavaReadable' not in metadata:
+    #         cls.read().load(path)
+    #     else:
+    #         PipelineReader(cls).load(metadata, cls, path)
 
 
     @classmethod
     @since("2.0.0")
     def read(cls):
         """Returns an MLReader instance for this class."""
-        return JavaMLReader(cls)
+        # return JavaMLReader(cls)
+        return PipelineReader(cls)
 
     @classmethod
     def _from_java(cls, java_stage):
@@ -203,7 +204,7 @@ class PipelineWriter(MLWriter):
     def __init__(self, instance):
         super(PipelineWriter, self).__init__()
         self.instance = instance
-        self.sc = SparkContext._active_spark_context
+        # self.sc = SparkContext._active_spark_context
 
     def save(self, path):
         SharedReadWrite.validateStages(self.instance.getStages())
@@ -215,13 +216,17 @@ class PipelineReader(MLReader):
 
     def __init__(self, cls):
         super(PipelineReader, self).__init__()
-        self.sc = SparkContext._active_spark_context
+        # self.sc = SparkContext._active_spark_context
         self.cls = cls
 
     def load(self, path, metadata):
         # className = "" # TODO: figure this out
-        uid, stages = SharedReadWrite.load(metadata, sc, path)
-        return Pipeline(stages)._resetUid(uid)
+        metadata = DefaultParamsReader.loadMetadata(path, sc, expectedClassName)
+        if 'isJavaReadable' not in metadata:
+            JavaMLReader(self.cls).load(path)
+        else:
+            uid, stages = SharedReadWrite.load(metadata, sc, cls, path)
+            return Pipeline(stages)._resetUid(uid)
 
 @inherit_doc
 class PipelineModel(Model, MLReadable, MLWritable):
@@ -256,18 +261,26 @@ class PipelineModel(Model, MLReadable, MLWritable):
     @since("2.0.0")
     def write(self):
         """Returns an MLWriter instance for this ML instance."""
-        return JavaMLWriter(self)
+        allStagesAreJava = True
+        stages = self.getStages()
+        for stage in stages:
+            if not isinstance(stage, JavaMLWritable):
+                allStagesAreJava = False
+        if allStagesAreJava:
+            return JavaMLWriter(self)
+        return PipelineWriter(self)
 
-    @since("2.0.0")
-    def save(self, path):
-        """Save this ML instance to the given path, a shortcut of `write().save(path)`."""
-        self.write().save(path)
+    # @since("2.0.0")
+    # def save(self, path):
+    #     """Save this ML instance to the given path, a shortcut of `write().save(path)`."""
+    #     self.write().save(path)
 
     @classmethod
     @since("2.0.0")
     def read(cls):
         """Returns an MLReader instance for this class."""
-        return JavaMLReader(cls)
+        # return JavaMLReader(cls)
+        return PipelineReader(cls)
 
     @classmethod
     def _from_java(cls, java_stage):
@@ -312,7 +325,7 @@ class SharedReadWrite():
             if not isinstance(stage, MLWritable):
                 raise ValueError("Pipeline write will fail on this pipline " + \
                                  "because stage %s of type %s is not MLWritable",
-                                  stage.uid, stage.__class__.__name)
+                                  stage.uid, type(stage))
 
     @staticmethod
     def save(instance, stages, sc, path):
@@ -335,10 +348,16 @@ class SharedReadWrite():
         stages = []
         for index, stageUid in enumerate(stageUids):
             stagePath = SharedReadWrite.getStagePath(stageUid, index, len(stageUids), stagesDir)
-            if isJavaReadable[index]:
-                stage = cls.load(path)
-            else:
-                stage = DefaultParamsReader.loadParamsInstance(stagePath, sc)
+            
+            # This is the Scala Pattern
+            # if isJavaReadable[index]:
+            #     stage = cls.load(path)
+            # else:
+            #     stage = DefaultParamsReader.loadParamsInstance(stagePath, sc)
+
+            # Why not just do this instead it should call the right version of load either way
+            stage = cls.load(path)
+
             stages.append(stage)
         return (metadata['uid'], stages)
 
