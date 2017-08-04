@@ -210,8 +210,9 @@ class PipelineWriter(MLWriter):
         # self.sc = SparkContext._active_spark_context
 
     def saveImpl(self, path):
-        SharedReadWrite.validateStages(self.instance.getStages())
-        SharedReadWrite.save(self.instance, self.instance.getStages(), self.sc, path)
+        stages = self.instance.getStages()
+        SharedReadWrite.validateStages(stages)
+        SharedReadWrite.saveImpl(self.instance, stages, self.sc, path)
 
 
 @inherit_doc
@@ -220,20 +221,62 @@ class PipelineReader(MLReader):
     def __init__(self, cls):
         super(PipelineReader, self).__init__()
         # self.sc = SparkContext._active_spark_context
+        # print "cls in pipeline reader init:",cls
         self.cls = cls
+        print "got cls:",self.cls
 
     def load(self, path):
         # className = "" # TODO: figure this out
         expectedClassName = ""
         metadata = DefaultParamsReader.loadMetadata(path, self.sc, expectedClassName)
         print "loaded metadata:",metadata
-        if 'isJavaReadable' not in metadata:
+        if 'isJavaReadable' not in metadata['paramMap']:
             print "using java ml reader"
             return JavaMLReader(self.cls).load(path)
         else:
             print "using pipeline reader functionality"
-            uid, stages = SharedReadWrite.load(metadata, self.sc, self.cls, path)
-            return Pipeline(stages)._resetUid(uid)
+            uid, stages = SharedReadWrite.load(metadata, self.sc, path)
+            print "finished shared read write load"
+            return Pipeline(stages=stages)._resetUid(uid)
+
+
+@inherit_doc
+class PipelineModelWriter(MLWriter):
+
+    def __init__(self, instance):
+        super(PipelineModelWriter, self).__init__()
+        self.instance = instance
+        # self.sc = SparkContext._active_spark_context
+
+    def saveImpl(self, path):
+        stages = self.instance.stages
+        SharedReadWrite.validateStages(stages)
+        SharedReadWrite.saveImpl(self.instance, stages, self.sc, path)
+
+
+@inherit_doc
+class PipelineModelReader(MLReader):
+
+    def __init__(self, cls):
+        super(PipelineModelReader, self).__init__()
+        # self.sc = SparkContext._active_spark_context
+        # print "cls in pipeline reader init:",cls
+        self.cls = cls
+        print "got cls:",self.cls
+
+    def load(self, path):
+        # className = "" # TODO: figure this out
+        expectedClassName = ""
+        metadata = DefaultParamsReader.loadMetadata(path, self.sc, expectedClassName)
+        print "loaded metadata:",metadata
+        if 'isJavaReadable' not in metadata['paramMap']:
+            print "using java ml reader"
+            return JavaMLReader(self.cls).load(path)
+        else:
+            print "using pipeline reader functionality"
+            uid, stages = SharedReadWrite.load(metadata, self.sc, path)
+            print "finished shared read write load"
+            return PipelineModel(stages=stages)._resetUid(uid)
 
 @inherit_doc
 class PipelineModel(Model, MLReadable, MLWritable):
@@ -275,7 +318,7 @@ class PipelineModel(Model, MLReadable, MLWritable):
                 allStagesAreJava = False
         if allStagesAreJava:
             return JavaMLWriter(self)
-        return PipelineWriter(self)
+        return PipelineModelWriter(self)
 
     # @since("2.0.0")
     # def save(self, path):
@@ -287,7 +330,7 @@ class PipelineModel(Model, MLReadable, MLWritable):
     def read(cls):
         """Returns an MLReader instance for this class."""
         # return JavaMLReader(cls)
-        return PipelineReader(cls)
+        return PipelineModelReader(cls)
 
     @classmethod
     def _from_java(cls, java_stage):
@@ -335,7 +378,7 @@ class SharedReadWrite():
                                   stage.uid, type(stage))
 
     @staticmethod
-    def save(instance, stages, sc, path):
+    def saveImpl(instance, stages, sc, path):
         stageUids = map(lambda x: x.uid, stages)
         isJavaReadable = map(lambda x: isinstance(x, JavaMLReadable), stages)
         # one idea: store a vector of True/False for isPython then when reading can either use the DefaultParamsReader
@@ -348,14 +391,16 @@ class SharedReadWrite():
             stage.write().save(SharedReadWrite.getStagePath(stage.uid, index, len(stages), stagesDir))
 
     @staticmethod
-    def load(metadata, cls, sc, path):
+    def load(metadata, sc, path):
         # metadata = DefaultParamsReader.loadMetadata(path, sc, expectedClassName
         stagesDir = os.path.join(path, "stages")
-        stageUids = metadata['stageUids']
-        isJavaReadable = metadata['isJavaReadable']
+        stageUids = metadata['paramMap']['stageUids']
+        isJavaReadable = metadata['paramMap']['isJavaReadable']
         stages = []
         for index, stageUid in enumerate(stageUids):
+            print "reading stage num:",index
             stagePath = SharedReadWrite.getStagePath(stageUid, index, len(stageUids), stagesDir)
+            stage = DefaultParamsReader.loadParamsInstance(stagePath, sc)
             
             # This is the Scala Pattern
             # if isJavaReadable[index]:
@@ -364,15 +409,16 @@ class SharedReadWrite():
             #     stage = DefaultParamsReader.loadParamsInstance(stagePath, sc)
 
             # Why not just do this instead it should call the right version of load either way
-            stage = cls.load(path)
+            # stage = cls.load(path)
 
             stages.append(stage)
+        print "finished for loop in shared read write load and about to return"
         return (metadata['uid'], stages)
 
     @staticmethod
     def getStagePath(stageUid, stageIdx, numStages, stagesDir):
         stageIdxDigits = len(str(numStages))
-        stageDir = "0{}d".format(stageIdxDigits) + "_" + stageUid
+        stageDir = str(stageIdxDigits) + "_" + stageUid
         stagePath = os.path.join(stagesDir, stageDir)
         return stagePath
 
