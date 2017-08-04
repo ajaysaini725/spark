@@ -206,7 +206,7 @@ class PipelineWriter(MLWriter):
         self.instance = instance
         # self.sc = SparkContext._active_spark_context
 
-    def save(self, path):
+    def saveImpl(self, path):
         SharedReadWrite.validateStages(self.instance.getStages())
         SharedReadWrite.save(instance, instance.getStages(), self.sc, path)
 
@@ -219,13 +219,13 @@ class PipelineReader(MLReader):
         # self.sc = SparkContext._active_spark_context
         self.cls = cls
 
-    def load(self, path, metadata):
+    def load(self, path):
         # className = "" # TODO: figure this out
-        metadata = DefaultParamsReader.loadMetadata(path, sc, expectedClassName)
+        metadata = DefaultParamsReader.loadMetadata(path, self.sc, expectedClassName)
         if 'isJavaReadable' not in metadata:
             JavaMLReader(self.cls).load(path)
         else:
-            uid, stages = SharedReadWrite.load(metadata, sc, cls, path)
+            uid, stages = SharedReadWrite.load(metadata, self.sc, self.cls, path)
             return Pipeline(stages)._resetUid(uid)
 
 @inherit_doc
@@ -337,6 +337,7 @@ class SharedReadWrite():
         DefaultParamsWriter.saveMetadata(instance, path, sc, paramMap=[jsonParams])
         stagesDir = os.path.join(path, "stages")
         for index, stage in enumerate(stages):
+            # SHOULDN'T THIS JUST BE stage.save()??
             stage.write().save(SharedReadWrite.getStagePath(stage.uid, index, len(stages), stagesDir))
 
     @staticmethod
