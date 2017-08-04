@@ -138,8 +138,11 @@ class Pipeline(Estimator, MLReadable, MLWritable):
         for stage in stages:
             if not isinstance(stage, JavaMLWritable):
                 allStagesAreJava = False
+                print "found non java stage",stage
         if allStagesAreJava:
+            print "returning java ml writer"
             return JavaMLWriter(self)
+        print "returning pipeline writer"
         return PipelineWriter(self)
 
 
@@ -208,7 +211,7 @@ class PipelineWriter(MLWriter):
 
     def saveImpl(self, path):
         SharedReadWrite.validateStages(self.instance.getStages())
-        SharedReadWrite.save(instance, instance.getStages(), self.sc, path)
+        SharedReadWrite.save(self.instance, self.instance.getStages(), self.sc, path)
 
 
 @inherit_doc
@@ -221,10 +224,14 @@ class PipelineReader(MLReader):
 
     def load(self, path):
         # className = "" # TODO: figure this out
+        expectedClassName = ""
         metadata = DefaultParamsReader.loadMetadata(path, self.sc, expectedClassName)
+        print "loaded metadata:",metadata
         if 'isJavaReadable' not in metadata:
-            JavaMLReader(self.cls).load(path)
+            print "using java ml reader"
+            return JavaMLReader(self.cls).load(path)
         else:
+            print "using pipeline reader functionality"
             uid, stages = SharedReadWrite.load(metadata, self.sc, self.cls, path)
             return Pipeline(stages)._resetUid(uid)
 
@@ -262,7 +269,7 @@ class PipelineModel(Model, MLReadable, MLWritable):
     def write(self):
         """Returns an MLWriter instance for this ML instance."""
         allStagesAreJava = True
-        stages = self.getStages()
+        stages = self.stages
         for stage in stages:
             if not isinstance(stage, JavaMLWritable):
                 allStagesAreJava = False
@@ -334,7 +341,7 @@ class SharedReadWrite():
         # one idea: store a vector of True/False for isPython then when reading can either use the DefaultParamsReader
         #   implementation or a standard .load() that would use JavaMLReader
         jsonParams = {'stageUids': stageUids, 'isJavaReadable': isJavaReadable}
-        DefaultParamsWriter.saveMetadata(instance, path, sc, paramMap=[jsonParams])
+        DefaultParamsWriter.save_metadata(instance, path, sc, paramMap=jsonParams)
         stagesDir = os.path.join(path, "stages")
         for index, stage in enumerate(stages):
             # SHOULDN'T THIS JUST BE stage.save()??
