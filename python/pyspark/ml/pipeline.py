@@ -333,7 +333,8 @@ class PipelineModel(Model, MLReadable, MLWritable):
 @inherit_doc
 class SharedReadWrite():
     """
-    Functions for `MLReader` and `MLWriter` shared between [[Pipeline]] and [[PipelineModel]]
+    Functions for :py:class:`MLReader` and :py:class`MLWriter` shared between
+    :py:class:'Pipeline' and :py:class'PipelineModel'
 
     .. versionadded:: 2.3.0
     """
@@ -352,7 +353,7 @@ class SharedReadWrite():
     @staticmethod
     def saveImpl(instance, stages, sc, path):
         """
-        Save metadata and stages for a [[Pipeline]] or [[PipelineModel]]
+        Save metadata and stages for a :py:class:'Pipeline' or :py:class'PipelineModel'
         - save metadata to path/metadata
         - save stages to stages/IDX_UID
         """
@@ -367,7 +368,7 @@ class SharedReadWrite():
     @staticmethod
     def load(metadata, sc, path):
         """
-        Load metadata and stages for a [[Pipeline]] or [[PipelineModel]]
+        Load metadata and stages for a :py:class:'Pipeline' or :py:class'PipelineModel'
 
         :return:  (UID, list of stages)
         """
