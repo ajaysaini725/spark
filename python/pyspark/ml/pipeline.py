@@ -353,7 +353,7 @@ class SharedReadWrite():
     @staticmethod
     def saveImpl(instance, stages, sc, path):
         """
-        Save metadata and stages for a :py:class:'Pipeline' or :py:class'PipelineModel'
+        Save metadata and stages for a :py:class:`Pipeline` or :py:class:`PipelineModel`
         - save metadata to path/metadata
         - save stages to stages/IDX_UID
         """
@@ -368,7 +368,7 @@ class SharedReadWrite():
     @staticmethod
     def load(metadata, sc, path):
         """
-        Load metadata and stages for a :py:class:'Pipeline' or :py:class'PipelineModel'
+        Load metadata and stages for a :py:class:`Pipeline` or :py:class:`PipelineModel`
 
         :return:  (UID, list of stages)
         """
