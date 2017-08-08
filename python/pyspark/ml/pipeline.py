@@ -333,7 +333,7 @@ class PipelineModel(Model, MLReadable, MLWritable):
 @inherit_doc
 class SharedReadWrite():
     """
-    Functions for :py:class:`MLReader` and :py:class`MLWriter` shared between
+    Functions for :py:class:`MLReader` and :py:class:`MLWriter` shared between
     :py:class:'Pipeline' and :py:class'PipelineModel'
 
     .. versionadded:: 2.3.0
